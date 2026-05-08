@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>buggy-shop demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; padding: 2rem; }
+    h1 { font-size: 1.75rem; margin-bottom: 0.25rem; color: #fff; }
+    p.subtitle { color: #94a3b8; margin-bottom: 2rem; font-size: 0.9rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    .card { background: #1e2230; border: 1px solid #2d3548; border-radius: 10px; padding: 1.25rem; }
+    .card h2 { font-size: 1rem; margin-bottom: 0.4rem; color: #e2e8f0; }
+    .card p { font-size: 0.8rem; color: #64748b; margin-bottom: 1rem; }
+    button {
+      width: 100%; padding: 0.6rem 1rem; border: none; border-radius: 6px;
+      font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: opacity .15s;
+    }
+    button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-blue   { background: #3b82f6; color: #fff; }
+    .btn-red    { background: #ef4444; color: #fff; }
+    .btn-amber  { background: #f59e0b; color: #000; }
+    .btn-purple { background: #8b5cf6; color: #fff; }
+    .btn-green  { background: #22c55e; color: #000; }
+    .btn-gray   { background: #475569; color: #fff; }
+    .log { margin-top: 1rem; background: #0f1117; border-radius: 6px; padding: 0.75rem;
+           font-size: 0.72rem; font-family: monospace; color: #94a3b8;
+           max-height: 140px; overflow-y: auto; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>buggy-shop</h1>
+  <p class="subtitle">Click any button to fire 10 requests — watch your Grafana dashboards for errors &amp; traces.</p>
+  <div class="grid">
+
+    <div class="card">
+      <h2>GET /products</h2>
+      <p>Baseline traffic — works fine. Good for spans + baseline latency.</p>
+      <button class="btn-green" onclick="fire('products', () => fetch('/products'))">Fire 10×</button>
+      <div class="log" id="log-products"></div>
+    </div>
+
+    <div class="card">
+      <h2>GET /user/1/profile</h2>
+      <p>Works fine — user 1 has an address.</p>
+      <button class="btn-blue" onclick="fire('user-ok', () => fetch('/user/1/profile'))">Fire 10×</button>
+      <div class="log" id="log-user-ok"></div>
+    </div>
+
+    <div class="card">
+      <h2>GET /user/2/profile</h2>
+      <p>NPE bug — user 2 has no address. Triggers 500 + structured error log.</p>
+      <button class="btn-red" onclick="fire('user-npe', () => fetch('/user/2/profile'))">Fire 10×</button>
+      <div class="log" id="log-user-npe"></div>
+    </div>
+
+    <div class="card">
+      <h2>POST /payments/charge</h2>
+      <p>Timeout bug — gateway takes 800ms, limit is 500ms. Triggers 504.</p>
+      <button class="btn-amber" onclick="fire('payments', () => fetch('/payments/charge', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({amount:49.99, userId:1})}))">Fire 10×</button>
+      <div class="log" id="log-payments"></div>
+    </div>
+
+    <div class="card">
+      <h2>GET /statements/2025-01</h2>
+      <p>Date off-by-one — period parsed with <code>new Date(period)</code> instead of appending <code>-01</code>.</p>
+      <button class="btn-purple" onclick="fire('statements', () => fetch('/statements/2025-01'))">Fire 10×</button>
+      <div class="log" id="log-statements"></div>
+    </div>
+
+    <div class="card">
+      <h2>POST /search (empty body)</h2>
+      <p>Unhandled rejection — missing body throws, no try/catch. Triggers 500.</p>
+      <button class="btn-gray" onclick="fire('search', () => fetch('/search', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'}))">Fire 10×</button>
+      <div class="log" id="log-search"></div>
+    </div>
+
+  </div>
+
+  <script>
+    async function fire(key, requestFn) {
+      const log = document.getElementById('log-' + key);
+      const btn = log.previousElementSibling;
+      btn.disabled = true;
+      log.textContent = '';
+
+      for (let i = 1; i <= 10; i++) {
+        await new Promise(r => setTimeout(r, 100 * (i - 1)));
+        try {
+          const res = await requestFn();
+          const body = await res.json().catch(() => ({}));
+          const line = `[${i}/10] ${res.status} ${res.ok ? '✓' : '✗'}  ${JSON.stringify(body).slice(0, 80)}\n`;
+          log.textContent += line;
+          log.scrollTop = log.scrollHeight;
+        } catch (e) {
+          log.textContent += `[${i}/10] ERR ${e.message}\n`;
+        }
+      }
+
+      btn.disabled = false;
+    }
+  </script>
+</body>
+</html>
