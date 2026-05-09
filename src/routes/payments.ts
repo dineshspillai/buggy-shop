@@ -15,7 +15,7 @@ function callPaymentGateway(amount: number): Promise<{ transactionId: string; st
 paymentsRouter.post('/charge', async (req: Request, res: Response) => {
   const { amount, userId } = req.body;
 
-  const timeoutMs = 500;
+  const timeoutMs = 1000; // Increased to accommodate 800ms downstream latency
   let timedOut = false;
 
   const timeoutHandle = setTimeout(() => {
