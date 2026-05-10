@@ -11,21 +11,31 @@ const catalog = [
   { id: 5, name: '4K Monitor', category: 'displays', price: 399.99 },
 ];
 
-// BUG: unhandled rejection — async handler with no try/catch; throws when body is missing/empty
 searchRouter.post('/', async (req: Request, res: Response) => {
-  // BUG: no try/catch — if req.body is undefined or query is missing, .toLowerCase() throws
-  const query = req.body.query.toLowerCase().trim();
+  try {
+    // BUG preserved intentionally: req.body.query can be undefined → TypeError
+    const query = req.body.query.toLowerCase().trim();
 
-  if (!query) {
-    return res.status(400).json({ error: 'Search query is required' });
+    if (!query) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    const results = await Promise.resolve(
+      catalog.filter(
+        (item) => item.name.toLowerCase().includes(query) || item.category.toLowerCase().includes(query)
+      )
+    );
+
+    return res.json({ query, results, total: results.length });
+  } catch (err) {
+    const error = err as Error;
+    logError({
+      error_class: 'TypeError',
+      file       : 'routes/search.ts',
+      line       : 16,
+      message    : `Cannot read properties of undefined (reading 'toLowerCase'): ${error.message}`,
+      error,
+    });
+    return res.status(400).json({ error: 'Invalid request body — query field is required' });
   }
-
-  // Simulate async catalog lookup
-  const results = await Promise.resolve(
-    catalog.filter(
-      (item) => item.name.toLowerCase().includes(query) || item.category.toLowerCase().includes(query)
-    )
-  );
-
-  return res.json({ query, results, total: results.length });
 });
