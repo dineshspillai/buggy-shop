@@ -84,9 +84,22 @@ export function httpMetricsMiddleware(req: Request, res: Response, next: NextFun
 // {service_name="buggy-shop"} | level = "error" | error_class != ""
 // Uses the same credentials as the OTLP pipeline (GRAFANA_INSTANCE_ID / API_TOKEN)
 // plus LOKI_HOST which points to the Loki endpoint (not the OTLP gateway).
+// Derive the Loki push host from the OTLP gateway URL when LOKI_HOST isn't set.
+// e.g. https://otlp-gateway-prod-us-west-0.grafana.net/otlp
+//   →  https://logs-prod-us-west-0.grafana.net
+function deriveLokiHost(): string | undefined {
+  if (process.env.LOKI_HOST) return process.env.LOKI_HOST;
+  const otlp = process.env.GRAFANA_OTLP_ENDPOINT;
+  if (!otlp) return undefined;
+  // strip scheme, extract region slug after "otlp-gateway-"
+  const match = otlp.match(/otlp-gateway-(prod-[^.]+)\.grafana\.net/);
+  if (!match) return undefined;
+  return `https://logs-${match[1]}.grafana.net`;
+}
+
 async function pushToLoki(body: Record<string, string | number>): Promise<void> {
-  const lokiHost   = process.env.LOKI_HOST;          // https://logs-prod-021.grafana.net
-  const lokiUser   = process.env.GRAFANA_INSTANCE_ID; // numeric instance id e.g. 1587132
+  const lokiHost   = deriveLokiHost();
+  const lokiUser   = process.env.GRAFANA_INSTANCE_ID;
   const lokiToken  = process.env.GRAFANA_API_TOKEN;
 
   if (!lokiHost || !lokiUser || !lokiToken) return;   // env not configured — skip silently
