@@ -1,0 +1,25 @@
+{
+  "display_information": {
+    "name": "buggy-shop-alerts",
+    "description": "Grafana alerts for buggy-shop errors and performance",
+    "background_color": "#e74c3c"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "buggy-shop-alerts",
+      "always_online": false
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "incoming-webhook"
+      ]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

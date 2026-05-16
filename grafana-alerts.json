@@ -1,0 +1,184 @@
+{
+  "apiVersion": 1,
+  "groups": [
+    {
+      "orgId": 1,
+      "name": "buggy-shop-alerts",
+      "folder": "buggy-shop",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "buggy-shop-high-error-rate",
+          "title": "High Error Rate (5xx)",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": { "from": 300, "to": 0 },
+              "datasourceUid": "__expr__",
+              "model": {
+                "type": "math",
+                "expression": "1"
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": { "from": 300, "to": 0 },
+              "datasourceUid": "${DS_PROMETHEUS}",
+              "model": {
+                "expr": "sum(rate(http_server_duration_milliseconds_count{service_name=\"buggy-shop\", http_response_status_code=~\"5..\"}[5m])) / sum(rate(http_server_duration_milliseconds_count{service_name=\"buggy-shop\"}[5m])) * 100",
+                "refId": "B",
+                "instant": true
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "type": "threshold",
+                "expression": "B",
+                "conditions": [
+                  { "evaluator": { "type": "gt", "params": [20] } }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "for": "1m",
+          "annotations": {
+            "summary": "Error rate is above 20% for buggy-shop",
+            "description": "More than 20% of requests are returning 5xx errors. Check /user/2/profile (NPE) and /payments/charge (timeout)."
+          },
+          "labels": {
+            "severity": "critical",
+            "service": "buggy-shop"
+          },
+          "isPaused": false
+        },
+        {
+          "uid": "buggy-shop-high-latency",
+          "title": "High Latency (p99 > 600ms)",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "B",
+              "relativeTimeRange": { "from": 300, "to": 0 },
+              "datasourceUid": "${DS_PROMETHEUS}",
+              "model": {
+                "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_duration_milliseconds_bucket{service_name=\"buggy-shop\"}[5m])))",
+                "refId": "B",
+                "instant": true
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "type": "threshold",
+                "expression": "B",
+                "conditions": [
+                  { "evaluator": { "type": "gt", "params": [600] } }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "for": "1m",
+          "annotations": {
+            "summary": "p99 latency is above 600ms",
+            "description": "p99 request latency exceeds 600ms. Likely caused by /payments/charge timing out at 800ms."
+          },
+          "labels": {
+            "severity": "warning",
+            "service": "buggy-shop"
+          },
+          "isPaused": false
+        },
+        {
+          "uid": "buggy-shop-npe",
+          "title": "NullPointerException Detected",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "B",
+              "relativeTimeRange": { "from": 300, "to": 0 },
+              "datasourceUid": "${DS_LOKI}",
+              "model": {
+                "expr": "sum(count_over_time({service_name=\"buggy-shop\"} | json | error_class=`NullPointerException` [5m]))",
+                "refId": "B",
+                "instant": true
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "type": "threshold",
+                "expression": "B",
+                "conditions": [
+                  { "evaluator": { "type": "gt", "params": [0] } }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "0s",
+          "annotations": {
+            "summary": "NullPointerException in buggy-shop",
+            "description": "A NullPointerException was logged. Caused by GET /user/2/profile — user.address is undefined."
+          },
+          "labels": {
+            "severity": "critical",
+            "service": "buggy-shop",
+            "error_class": "NullPointerException"
+          },
+          "isPaused": false
+        },
+        {
+          "uid": "buggy-shop-timeout",
+          "title": "Payment Gateway Timeout",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "B",
+              "relativeTimeRange": { "from": 300, "to": 0 },
+              "datasourceUid": "${DS_LOKI}",
+              "model": {
+                "expr": "sum(count_over_time({service_name=\"buggy-shop\"} | json | error_class=`TimeoutError` [5m]))",
+                "refId": "B",
+                "instant": true
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "type": "threshold",
+                "expression": "B",
+                "conditions": [
+                  { "evaluator": { "type": "gt", "params": [0] } }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "0s",
+          "annotations": {
+            "summary": "Payment gateway timeout in buggy-shop",
+            "description": "POST /payments/charge is timing out. Gateway takes 800ms but limit is 500ms."
+          },
+          "labels": {
+            "severity": "critical",
+            "service": "buggy-shop",
+            "error_class": "TimeoutError"
+          },
+          "isPaused": false
+        }
+      ]
+    }
+  ]
+}
