@@ -14,7 +14,9 @@ const catalog = [
 searchRouter.post('/', async (req: Request, res: Response) => {
   try {
     // BUG preserved intentionally: req.body.query can be undefined → TypeError
-    const query = req.body.query.toLowerCase().trim();
+    const query = req.body.query
+      ? req.body.query.toLowerCase().trim()
+      : '';
 
     if (!query) {
       return res.status(400).json({ error: 'Search query is required' });
