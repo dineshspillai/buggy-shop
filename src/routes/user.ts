@@ -18,7 +18,7 @@ userRouter.get('/:id/profile', (req: Request, res: Response) => {
     }
 
     // BUG: crashes when user.address is undefined
-    const street = (user as any).address.street;
+    const street = user.address?.street || '';
 
     return res.json({ id: user.id, name: user.name, email: user.email, street });
   } catch (err) {
